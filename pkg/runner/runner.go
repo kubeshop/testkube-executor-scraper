@@ -1,55 +1,71 @@
 package runner
 
 import (
+	"errors"
+	"fmt"
+	"os"
+
+	"github.com/kelseyhightower/envconfig"
 	"github.com/kubeshop/testkube/pkg/api/v1/testkube"
-	"github.com/kubeshop/testkube/pkg/executor/content"
-	"github.com/kubeshop/testkube/pkg/executor/output"
-	"github.com/kubeshop/testkube/pkg/executor/secret"
+	"github.com/kubeshop/testkube/pkg/executor/scraper"
 )
 
-func NewRunner() *ExampleRunner {
-	return &ExampleRunner{
-		Fetcher: content.NewFetcher(""),
-	}
+type Params struct {
+	Endpoint        string // RUNNER_ENDPOINT
+	AccessKeyID     string // RUNNER_ACCESSKEYID
+	SecretAccessKey string // RUNNER_SECRETACCESSKEY
+	Location        string // RUNNER_LOCATION
+	Token           string // RUNNER_TOKEN
+	Ssl             bool   // RUNNER_SSL
+	ScrapperEnabled bool   // RUNNER_SCRAPPERENABLED
 }
 
-// ExampleRunner for template - change me to some valid runner
-type ExampleRunner struct {
-	Fetcher content.ContentFetcher
-}
-
-func (r *ExampleRunner) Run(execution testkube.Execution) (result testkube.ExecutionResult, err error) {
-
-	// use `execution.Variables` for variables passed from Test/Execution
-	// variables of type "secret" will be automatically decoded
-	secret.NewEnvManager().GetVars(execution.Variables)
-	path, err := r.Fetcher.Fetch(execution.Content)
+// NewRunner creates scraper runner
+func NewRunner() (*ScraperRunner, error) {
+	var params Params
+	err := envconfig.Process("runner", &params)
 	if err != nil {
+		return nil, err
+	}
+
+	runner := &ScraperRunner{
+		Scraper: scraper.NewMinioScraper(
+			params.Endpoint,
+			params.AccessKeyID,
+			params.SecretAccessKey,
+			params.Location,
+			params.Token,
+			params.Ssl,
+		),
+		ScrapperEnabled: params.ScrapperEnabled,
+	}
+
+	return runner, nil
+}
+
+// ScaperRunner prepares data for executor
+type ScraperRunner struct {
+	ScrapperEnabled bool // RUNNER_SCRAPPERENABLED
+	datadir         string
+	Scraper         scraper.Scraper
+}
+
+// Run prepares data for executor
+func (r *ScraperRunner) Run(execution testkube.Execution) (result testkube.ExecutionResult, err error) {
+	// check that the datadir exists
+	_, err = os.Stat(r.datadir)
+	if errors.Is(err, os.ErrNotExist) {
 		return result, err
 	}
 
-	output.PrintEvent("created content path", path)
-
-	if execution.Content.IsFile() {
-		output.PrintEvent("using file", execution)
-		// TODO implement file based test content for string, git-file, file-uri
-		//      or remove if not used
+	// scrape artifacts first even if there are errors above
+	if r.ScrapperEnabled {
+		directories := []string{r.datadir}
+		err := r.Scraper.Scrape(execution.Id, directories)
+		if err != nil {
+			return result.WithErrors(fmt.Errorf("scrape artifacts error: %w", err)), nil
+		}
 	}
 
-	if execution.Content.IsDir() {
-		output.PrintEvent("using dir", execution)
-		// TODO implement file based test content for git-dir
-		//      or remove if not used
-	}
-
-	// TODO run executor here
-
-	// error result should be returned if something is not ok
-	// return result.Err(fmt.Errorf("some test execution related error occured"))
-
-	// TODO return ExecutionResult
-	return testkube.ExecutionResult{
-		Status: testkube.ExecutionStatusPassed,
-		Output: "exmaple test output",
-	}, nil
+	return result.WithErrors(err), nil
 }
