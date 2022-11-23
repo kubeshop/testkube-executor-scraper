@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/kelseyhightower/envconfig"
 	"github.com/kubeshop/testkube/pkg/api/v1/testkube"
@@ -46,21 +47,27 @@ func NewRunner() (*ScraperRunner, error) {
 // ScaperRunner prepares data for executor
 type ScraperRunner struct {
 	ScrapperEnabled bool // RUNNER_SCRAPPERENABLED
-	datadir         string
 	Scraper         scraper.Scraper
 }
 
 // Run prepares data for executor
 func (r *ScraperRunner) Run(execution testkube.Execution) (result testkube.ExecutionResult, err error) {
 	// check that the datadir exists
-	_, err = os.Stat(r.datadir)
+	if execution.ArtifactRequest == nil {
+		return result, nil
+	}
+
+	_, err = os.Stat(execution.ArtifactRequest.VolumeMountPath)
 	if errors.Is(err, os.ErrNotExist) {
 		return result, err
 	}
 
 	// scrape artifacts first even if there are errors above
-	if r.ScrapperEnabled {
-		directories := []string{r.datadir}
+	if r.ScrapperEnabled && len(execution.ArtifactRequest.Dirs) != 0 {
+		directories := execution.ArtifactRequest.Dirs
+		for i := range directories {
+			directories[i] = filepath.Join(execution.ArtifactRequest.VolumeMountPath, directories[i])
+		}
 		err := r.Scraper.Scrape(execution.Id, directories)
 		if err != nil {
 			return result.WithErrors(fmt.Errorf("scrape artifacts error: %w", err)), nil

@@ -2,7 +2,7 @@
 
 # Welcome to Testkube Scraper
 
-Testkube Executor  is a test executor scraping for [Testkube](https://testkube.io).  
+Testkube Executor is a test executor scraping for [Testkube](https://testkube.io).  
 
 # Issues and enchancements 
 
