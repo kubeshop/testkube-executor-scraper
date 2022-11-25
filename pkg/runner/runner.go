@@ -62,9 +62,12 @@ func (r *ScraperRunner) Run(execution testkube.Execution) (result testkube.Execu
 		return result, err
 	}
 
-	// scrape artifacts first even if there are errors above
-	if r.ScrapperEnabled && len(execution.ArtifactRequest.Dirs) != 0 {
+	if r.ScrapperEnabled {
 		directories := execution.ArtifactRequest.Dirs
+		if len(directories) == 0 {
+			directories = []string{"."}
+		}
+
 		for i := range directories {
 			directories[i] = filepath.Join(execution.ArtifactRequest.VolumeMountPath, directories[i])
 		}
