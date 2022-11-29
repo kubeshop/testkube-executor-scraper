@@ -4,9 +4,11 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/kelseyhightower/envconfig"
 	"github.com/kubeshop/testkube/pkg/api/v1/testkube"
+	"github.com/kubeshop/testkube/pkg/executor/output"
 	"github.com/kubeshop/testkube/pkg/executor/scraper"
 )
 
@@ -43,29 +45,41 @@ func NewRunner() (*ScraperRunner, error) {
 	return runner, nil
 }
 
-// ScaperRunner prepares data for executor
+// ScraperRunner prepares data for executor
 type ScraperRunner struct {
 	ScrapperEnabled bool // RUNNER_SCRAPPERENABLED
-	datadir         string
 	Scraper         scraper.Scraper
 }
 
 // Run prepares data for executor
 func (r *ScraperRunner) Run(execution testkube.Execution) (result testkube.ExecutionResult, err error) {
-	// check that the datadir exists
-	_, err = os.Stat(r.datadir)
+	// check that the artifact dir exists
+	if execution.ArtifactRequest == nil {
+		return result.Err(fmt.Errorf("executor only support artifact based tests")), nil
+	}
+
+	_, err = os.Stat(execution.ArtifactRequest.VolumeMountPath)
 	if errors.Is(err, os.ErrNotExist) {
 		return result, err
 	}
 
-	// scrape artifacts first even if there are errors above
 	if r.ScrapperEnabled {
-		directories := []string{r.datadir}
+		directories := execution.ArtifactRequest.Dirs
+		if len(directories) == 0 {
+			directories = []string{"."}
+		}
+
+		for i := range directories {
+			directories[i] = filepath.Join(execution.ArtifactRequest.VolumeMountPath, directories[i])
+		}
+
+		output.PrintEvent("scraping for test files", directories)
 		err := r.Scraper.Scrape(execution.Id, directories)
 		if err != nil {
-			return result.WithErrors(fmt.Errorf("scrape artifacts error: %w", err)), nil
+			return result.Err(err), fmt.Errorf("failed getting artifacts: %w", err)
 		}
 	}
 
-	return result.WithErrors(err), nil
+	result.Success()
+	return result, nil
 }
