@@ -34,7 +34,7 @@ jobs:
           export RELEASE_VERSION
 
           cd ./scripts
-          ./chart_releaser.sh --testkube-executor-name scrpaer --main-chart false
+          ./chart_releaser.sh --testkube-executor-name scraper --main-chart false
 
         env:
           GH_PUSH_TOKEN: ${{ secrets.CI_BOT_TOKEN }}
