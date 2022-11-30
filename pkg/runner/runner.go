@@ -80,6 +80,5 @@ func (r *ScraperRunner) Run(execution testkube.Execution) (result testkube.Execu
 		}
 	}
 
-	result.Success()
 	return result, nil
 }
