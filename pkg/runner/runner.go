@@ -9,6 +9,7 @@ import (
 	"github.com/kelseyhightower/envconfig"
 	"github.com/kubeshop/testkube/pkg/api/v1/testkube"
 	"github.com/kubeshop/testkube/pkg/executor/output"
+	"github.com/kubeshop/testkube/pkg/executor/runner"
 	"github.com/kubeshop/testkube/pkg/executor/scraper"
 )
 
@@ -81,4 +82,9 @@ func (r *ScraperRunner) Run(execution testkube.Execution) (result testkube.Execu
 	}
 
 	return result, nil
+}
+
+// GetType returns runner type
+func (r *ScraperRunner) GetType() runner.Type {
+	return runner.TypeFin
 }
