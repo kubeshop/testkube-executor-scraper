@@ -8,24 +8,15 @@ import (
 
 	"github.com/kelseyhightower/envconfig"
 	"github.com/kubeshop/testkube/pkg/api/v1/testkube"
+	"github.com/kubeshop/testkube/pkg/envs"
 	"github.com/kubeshop/testkube/pkg/executor/output"
 	"github.com/kubeshop/testkube/pkg/executor/runner"
 	"github.com/kubeshop/testkube/pkg/executor/scraper"
 )
 
-type Params struct {
-	Endpoint        string // RUNNER_ENDPOINT
-	AccessKeyID     string // RUNNER_ACCESSKEYID
-	SecretAccessKey string // RUNNER_SECRETACCESSKEY
-	Location        string // RUNNER_LOCATION
-	Token           string // RUNNER_TOKEN
-	Ssl             bool   // RUNNER_SSL
-	ScrapperEnabled bool   // RUNNER_SCRAPPERENABLED
-}
-
 // NewRunner creates scraper runner
 func NewRunner() (*ScraperRunner, error) {
-	var params Params
+	var params envs.Params
 	err := envconfig.Process("runner", &params)
 	if err != nil {
 		return nil, err
@@ -38,6 +29,7 @@ func NewRunner() (*ScraperRunner, error) {
 			params.SecretAccessKey,
 			params.Location,
 			params.Token,
+			params.Bucket,
 			params.Ssl,
 		),
 		ScrapperEnabled: params.ScrapperEnabled,
@@ -56,7 +48,7 @@ type ScraperRunner struct {
 func (r *ScraperRunner) Run(execution testkube.Execution) (result testkube.ExecutionResult, err error) {
 	// check that the artifact dir exists
 	if execution.ArtifactRequest == nil {
-		return result.Err(fmt.Errorf("executor only support artifact based tests")), nil
+		return *result.Err(fmt.Errorf("executor only support artifact based tests")), nil
 	}
 
 	_, err = os.Stat(execution.ArtifactRequest.VolumeMountPath)
@@ -77,7 +69,7 @@ func (r *ScraperRunner) Run(execution testkube.Execution) (result testkube.Execu
 		output.PrintEvent("scraping for test files", directories)
 		err := r.Scraper.Scrape(execution.Id, directories)
 		if err != nil {
-			return result.Err(err), fmt.Errorf("failed getting artifacts: %w", err)
+			return *result.Err(err), fmt.Errorf("failed getting artifacts: %w", err)
 		}
 	}
 
